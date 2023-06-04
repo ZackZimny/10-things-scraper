@@ -74,17 +74,20 @@ def get_oldest_date(date, doc_text):
 
 def scrape_website(time):
     response = requests.get('https://theweek.com/daily-briefing')
-    text = response.text
-    text = text.split('href="')
-    time = datetime.datetime.now()
+    text = html2text.html2text(response.text)
+    text = text.replace('\n', '')
+    text = text.split('(')
     date = time.strftime("%B-%-d-%Y").lower()
-    text = [t for t in text if t.startswith('/briefing')
-            and t.find(date) != -1]
-    text = text[0]
-    if len(text) == 0:
-        print("Article not found for date: {}", time.strftime("%m-%d-%y"))
-        return
-    url = 'https://theweek.com' + text[0:text.find('"')]
+    link = ""
+    for t in text:
+        t = t[:t.find(')')]
+        if t.find('10-things-you-need-to-know-today') != -1 and t.find(date) != -1:
+            link = t
+            break
+    if link == "":
+        print("Article not found for date: ", date)
+        return ''
+    url = 'https://theweek.com' + link
     response = requests.get(url)
     text = html2text.html2text(response.text)
     text = text[text.find("Daily briefing"):]
@@ -97,17 +100,19 @@ def update_doc(service):
     requests = []
     date = get_oldest_date(datetime.datetime.today(), get_doc_text(service))
     while date <= datetime.datetime.today():
+        print(date)
         text = scrape_website(date)
-        requests.append(
-            {
-                'insertText': {
-                    'location': {
-                        'index': 1,
-                    },
-                    'text': text
+        if text != '':
+            requests.append(
+                {
+                    'insertText': {
+                        'location': {
+                            'index': 1,
+                        },
+                        'text': text
+                    }
                 }
-            }
-        )
+            )
         date += datetime.timedelta(days=1)
         time.sleep(1.1)
     if len(requests) == 0:
